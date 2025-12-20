@@ -7,9 +7,9 @@ from openai import OpenAI
 app = Flask(__name__)
 
 # --- CONFIGURATION ---
-DEEPSEEK_API_KEY = "DEEPSEEK_API_KEY" # 🔴 PASTE KEY HERE
-PAGE_ACCESS_TOKEN = "PAGE_ACCESS_TOKEN" # 🔴 PASTE TOKEN HERE
-VERIFY_TOKEN = "VERIFY_TOKEN"
+DEEPSEEK_API_KEY = "sk-f43fe0642f3f4337b4ea7235c9fe5b8e" # 🔴 PASTE KEY HERE
+PAGE_ACCESS_TOKEN = "EAAMCt1EzGVEBQFmFD14sZBeOekgDPpBVU9EIaifXAeicXr6TdLV66kL4cnTYyjrGeAmsrph3XI6Jrnb4bAI5RZCrZASlv3TQ2YXb489thbZAgHxbwCFwzT3sZBrmNuES4wSv1SpKeyWf5ikNZBkB0TpOGIcKhZBjIWmNE3USyZAy3ZANy8JZAPEDWoSRuB11ZAAKgGZBYiQLnO2bslG5R1vpL5ZCGkeJkYwZDZD" # 🔴 PASTE TOKEN HERE
+VERIFY_TOKEN = "mahi2004"
 
 # --- GOOGLE SHEETS SETUP ---
 SHEET_NAME = "Orders_Sheet"
@@ -155,4 +155,5 @@ def send_message(recipient_id, text):
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
