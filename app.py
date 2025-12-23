@@ -7,28 +7,47 @@ from openai import OpenAI
 
 app = Flask(__name__)
 
-# --- CONFIGURATION ---
-# 🔴 IMPORTANT: Regenerate your keys and paste them here.
-# Do NOT use the keys you posted online, they are not safe anymore.
-
-# 1. FACEBOOK & INSTAGRAM (From App A)
+# --- CONFIGURATION (Regenerate your keys if needed) ---
 PAGE_ACCESS_TOKEN = "EAAMDopgTxP4BQXlMd51KpNEVMWDtY1ZAkvZAgL0vP9qn2uZAIJ6NU3UA5Uj0gEU6VbXZBrI6OxyC6TNcwV7Mgq1G8pOdCIw2kBgHMLG4NPpRFwURsnaNYIZBCLrZBneTJfmYQmBZAi5vZA7WGju2bVtRpw41mlh3uNnoF5MHYpz9O2VyNTxOrmt3JjqVMCET7vz6tP9bodsHrAZDZD"
-
-# 2. WHATSAPP (From App B)
 WHATSAPP_TOKEN = "EAAMDopgTxP4BQGiv4cTvJloEiWdrduKChsu8bA1eQYGQsFLduIoKYcZA0q7GrlT0DzL8VZA0CP3ZAc3SCnQZCZCxRxTzCBTyHjWOfeI0oxs9mZAa1R3V4gQkiWzWTetF0ZBXrJsmwOonmKFiULi9fgfQBOJzxErLdcw4ZBZCsl3Ps9PMc0QJ4JKqY7nN47nzNBAs74c2IGcGaWwOftsCfZBTLToSlBt126qZCzBv2WZCgtGZBYZC2NCZB2mEPTiDDZCfPZAUCNZCILTfhCMfLItbThjxKngZBr0gYDW"
 WHATSAPP_PHONE_ID = "875675892306352"
-
-# 3. AI & SYSTEM
 DEEPSEEK_API_KEY = "sk-f43fe0642f3f4337b4ea7235c9fe5b8e"
 VERIFY_TOKEN = "mahi2004"
 
-# --- GOOGLE SHEETS ---
-SCRIPT_URL = "https://script.google.com/macros/s/AKfycbypBK1c1T4lW74Jy92SMU-vEL0TNY_ZyZH1f74DdmRCeXnKIgLxwoJn6PxNE7soNQZi/exec"
-
 client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
-user_histories = {}
 
-SYSTEM_PROMPT = """
+# --- 🧠 PERMANENT MEMORY SYSTEM ---
+CHAT_DB_FILE = "chat_memory.json"
+ORDER_DB_FILE = "order_status.json"
+
+# Load Memory on Startup
+if os.path.exists(CHAT_DB_FILE):
+    with open(CHAT_DB_FILE, 'r', encoding='utf-8') as f:
+        user_histories = json.load(f)
+else:
+    user_histories = {}
+
+if os.path.exists(ORDER_DB_FILE):
+    with open(ORDER_DB_FILE, 'r', encoding='utf-8') as f:
+        completed_orders = json.load(f) # List of IDs who ordered
+else:
+    completed_orders = []
+
+def save_memory():
+    """Saves chat history to a file so we don't lose it on restart."""
+    with open(CHAT_DB_FILE, 'w', encoding='utf-8') as f:
+        json.dump(user_histories, f, ensure_ascii=False, indent=2)
+
+def save_order_status(user_id):
+    """Marks a user as 'Ordered' forever."""
+    if user_id not in completed_orders:
+        completed_orders.append(user_id)
+        with open(ORDER_DB_FILE, 'w', encoding='utf-8') as f:
+            json.dump(completed_orders, f, ensure_ascii=False, indent=2)
+
+# --- AI PROMPTS ---
+
+BASE_SYSTEM_PROMPT = """
 SYSTEM / INSTRUCTIONS:
 You are a professional sales assistant for **Hiamso**, a luxury fashion store in Algeria. Speak **ONLY** in Algerian Darja (Derja) mixed with arabic. Tone: friendly, classy, "Old Money" — polite, confident, unobtrusive. KEEP ALL REPLIES SHORT: **max 3 sentences**.
 
@@ -72,156 +91,130 @@ Assistant (only JSON):
 {"ORDER_COMPLETE": true, "name": "...", "phone": "...", "wilaya": "...", "address": "...", "product": "...", "price_DA": "..."}
 """
 
-# --- HELPER FUNCTIONS ---
+# --- CORE FUNCTIONS ---
 
-def save_order_to_sheet(order_data):
+def save_order_to_sheet(order_data, user_id):
     try:
+        # 1. Send to Google Sheets
         requests.post(SCRIPT_URL, json=order_data)
+        
+        # 2. Mark user as 'Ordered' in our local database
+        save_order_status(user_id) 
         return True
     except Exception as e:
         print(f"❌ Sheet Error: {e}")
         return False
 
 def get_ai_response(user_id, user_message):
+    # 1. Initialize User Memory if new
     if user_id not in user_histories:
-        user_histories[user_id] = [{"role": "system", "content": SYSTEM_PROMPT}]
+        user_histories[user_id] = []
     
-    user_histories[user_id].append({"role": "user", "content": user_message})
+    # 2. Check if this is an "Old Client" (VIP Check)
+    dynamic_prompt = BASE_SYSTEM_PROMPT
+    if user_id in completed_orders:
+        dynamic_prompt += "\n\n[NOTE: This user has ALREADY ordered from us before. Welcome them back warmly. Ask if they liked the previous product.]"
     
-    # Keep memory short (Last 10 messages)
-    if len(user_histories[user_id]) > 12:
-        user_histories[user_id] = [user_histories[user_id][0]] + user_histories[user_id][-10:]
+    # 3. Build Messages (System + History + New)
+    messages = [{"role": "system", "content": dynamic_prompt}] + user_histories[user_id][-10:] # Keep last 10 msgs context
+    messages.append({"role": "user", "content": user_message})
 
     try:
+        # 4. Call DeepSeek
         response = client.chat.completions.create(
             model="deepseek-chat", 
-            messages=user_histories[user_id], 
+            messages=messages, 
             temperature=0.3
         )
         ai_reply = response.choices[0].message.content
+        
+        # 5. Save to Memory
+        user_histories[user_id].append({"role": "user", "content": user_message})
         user_histories[user_id].append({"role": "assistant", "content": ai_reply})
+        save_memory() # <--- SAVES TO FILE IMMEDIATELY
+
         return ai_reply
     except Exception as e:
         print(f"❌ AI Error: {e}")
-        return "System error. Please try again later."
+        return "Semhili, kayen mochkil sghir fel reseau."
 
-# --- SENDING FUNCTIONS (DEBUG VERSION) ---
-
-def send_facebook_message(recipient_id, text):
-    print(f"🚀 Sending FB message to {recipient_id}...")
-    
-    params = {"access_token": PAGE_ACCESS_TOKEN}
-    headers = {"Content-Type": "application/json"}
-    data = json.dumps({
-        "recipient": {"id": recipient_id},
-        "message": {"text": text}
-    })
-    
-    try:
-        r = requests.post("https://graph.facebook.com/v18.0/me/messages", params=params, headers=headers, data=data)
-        if r.status_code == 200:
-            print("✅ FB Message SENT!")
-        else:
-            print(f"❌ FB SEND ERROR {r.status_code}: {r.text}")
-    except Exception as e:
-        print(f"❌ Connection Error: {e}")
-
-def send_whatsapp_message(recipient_phone, text):
-    print(f"🚀 Sending WhatsApp message to {recipient_phone}...")
-    
-    headers = {
-        "Authorization": f"Bearer {WHATSAPP_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    data = json.dumps({
-        "messaging_product": "whatsapp",
-        "to": recipient_phone,
-        "text": {"body": text}
-    })
-    
-    try:
-        r = requests.post(f"https://graph.facebook.com/v18.0/{WHATSAPP_PHONE_ID}/messages", headers=headers, data=data)
-        if r.status_code == 200:
-            print("✅ WhatsApp Message SENT!")
-        else:
-            print(f"❌ WHATSAPP SEND ERROR {r.status_code}: {r.text}")
-    except Exception as e:
-        print(f"❌ Connection Error: {e}")
-
-# --- PROCESSOR (RUNS IN BACKGROUND) ---
+# --- PROCESSOR ---
 
 def process_message(user_id, user_text, platform):
-    print(f"📩 [{platform}] Msg from {user_id}: {user_text}")
+    print(f"📩 [{platform}] {user_id}: {user_text}")
     
-    # 1. Get AI Reply
-    print("🤖 Waiting for AI response...")
+    # Get Reply
     ai_text = get_ai_response(user_id, user_text)
-    print(f"💡 AI Says: {ai_text[:30]}...") # Print preview
     
-    # 2. Check for Order
+    # Check JSON
     clean_text = ai_text
     if "ORDER_COMPLETE" in ai_text:
         try:
-            print("📝 Processing Order JSON...")
             start = ai_text.find('{')
             end = ai_text.rfind('}') + 1
             json_str = ai_text[start:end]
             order_data = json.loads(json_str)
             
-            if save_order_to_sheet(order_data):
-                clean_text = "شكرا تم تسجيل طلبك سنتصل بك لاحقا "
+            # Save to Sheet AND Local Memory
+            if save_order_to_sheet(order_data, user_id):
+                clean_text = "Bsahtek! Commande ta3ek tsajlet (Saved). N'3aytoulak 9rib."
             else:
-                clean_text = "Order received (System Note: Sheet Error)."
+                clean_text = "Order received but sheet error."
                 
         except Exception as e:
-            print(f"⚠️ JSON Parse Error: {e}")
+            print(f"JSON Error: {e}")
 
-    # 3. Send Reply
+    # Send Reply
     if platform == "whatsapp":
         send_whatsapp_message(user_id, clean_text)
     else:
         send_facebook_message(user_id, clean_text)
 
-# --- WEBHOOK ROUTES ---
+# --- SENDING FUNCTIONS ---
+# (Paste your send_facebook_message and send_whatsapp_message functions here)
+# ... [Keep your previous sending code unchanged] ...
 
-@app.route('/webhook', methods=['GET'])
-def verify():
-    if request.args.get("hub.mode") == "subscribe" and request.args.get("hub.verify_token") == VERIFY_TOKEN:
-        return request.args.get("hub.challenge"), 200
-    return "Verification failed", 403
+def send_facebook_message(recipient_id, text):
+    # ... [PASTE YOUR PREVIOUS CODE HERE] ...
+    params = {"access_token": PAGE_ACCESS_TOKEN}
+    headers = {"Content-Type": "application/json"}
+    data = json.dumps({"recipient": {"id": recipient_id}, "message": {"text": text}})
+    requests.post("https://graph.facebook.com/v18.0/me/messages", params=params, headers=headers, data=data)
 
-@app.route('/webhook', methods=['POST'])
+def send_whatsapp_message(recipient_phone, text):
+    # ... [PASTE YOUR PREVIOUS CODE HERE] ...
+    headers = {"Authorization": f"Bearer {WHATSAPP_TOKEN}", "Content-Type": "application/json"}
+    data = json.dumps({"messaging_product": "whatsapp", "to": recipient_phone, "text": {"body": text}})
+    requests.post(f"https://graph.facebook.com/v18.0/{WHATSAPP_PHONE_ID}/messages", headers=headers, data=data)
+
+# --- FLASK SERVER ---
+@app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
+    if request.method == 'GET':
+        if request.args.get("hub.verify_token") == VERIFY_TOKEN:
+            return request.args.get("hub.challenge"), 200
+        return "Verification failed", 403
+
     data = request.get_json()
     
-    # 🟢 1. DETECT WHATSAPP
+    # WHATSAPP
     if data.get('object') == 'whatsapp_business_account':
         try:
             for entry in data['entry']:
                 for change in entry['changes']:
                     if change['value'].get('messages'):
                         msg = change['value']['messages'][0]
-                        sender_phone = msg['from']
-                        text = msg['text']['body']
-                        
-                        # Run in background
-                        threading.Thread(target=process_message, args=(sender_phone, text, "whatsapp")).start()
-        except Exception as e:
-            print(f"❌ WhatsApp Hook Error: {e}")
+                        threading.Thread(target=process_message, args=(msg['from'], msg['text']['body'], "whatsapp")).start()
+        except: pass
 
-    # 🔵 2. DETECT FACEBOOK / INSTAGRAM
-    elif data.get('object') == 'page' or data.get('object') == 'instagram':
-        for entry in data['entry']:
-            for event in entry.get('messaging', []):
-                # Skip echoes
-                if event.get('message', {}).get('is_echo'): continue
-                
-                if 'message' in event and 'text' in event['message']:
-                    sender_id = event['sender']['id']
-                    text = event['message']['text']
-                    
-                    # Run in background
-                    threading.Thread(target=process_message, args=(sender_id, text, "facebook")).start()
+    # FACEBOOK/INSTAGRAM
+    elif data.get('object') in ['page', 'instagram']:
+        try:
+            for entry in data['entry']:
+                for event in entry.get('messaging', []):
+                    if 'message' in event and 'text' in event['message'] and not event['message'].get('is_echo'):
+                        threading.Thread(target=process_message, args=(event['sender']['id'], event['message']['text'], "facebook")).start()
+        except: pass
 
     return "ok", 200
 
