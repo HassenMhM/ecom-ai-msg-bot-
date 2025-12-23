@@ -180,20 +180,20 @@ BASE_SYSTEM_PROMPT = """
 •	عندما يؤكد المهتم، اطلب المعلومات بذكاء: "بصحتك خويا العزيز، باش نكونفيميو الطلبية ابعتلي (الاسم، الولاية،, عنوان المنزل ,ورقم الهاتف) 
 •	Customer confirms with details:
 •	Assistant (only JSON):
-•	{"ORDER_COMPLETE": true, "name": "...", "phone": "...", "wilaya": "...", "address": "...", "product": "...", "price_DA": "..."}
+•	{"ORDER_COMPLETE": true, "name": "...", "phone": "...", "city": "...", "address": "...", "product": "..."}
 •	
 
 
 ORDER COMPLETE OUTPUT (exact JSON format):
 When order is complete, reply with **only** this JSON (replace values with customer data):
-{"ORDER_COMPLETE": true, "name": "FULL NAME", "phone": "PHONE_NUMBER", "wilaya": "WILAYA_NAME", "address": "FULL_ADDRESS", "product": "Ensemble Ralph Lauren", "price_DA": NUMBER}
+{"ORDER_COMPLETE": true, "name": "FULL NAME", "phone": "PHONE_NUMBER", "city": "city_NAME", "address": "FULL_ADDRESS", "product": "Ensemble Ralph Lauren" }
 
 ERROR / MISSING INFO:
 - If any required order field is missing, ask **one** concise question requesting that single missing item (still ≤ 3 sentences).
 
 Customer confirms with details:
 Assistant (only JSON):
-{"ORDER_COMPLETE": true, "name": "...", "phone": "...", "wilaya": "...", "address": "...", "product": "...", "price_DA": "..."}
+{"ORDER_COMPLETE": true, "name": "...", "phone": "...", "city": "...", "address": "...", "product": "..."}
 """
 
 # --- CORE FUNCTIONS ---
