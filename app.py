@@ -13,6 +13,7 @@ WHATSAPP_TOKEN = "EAAMDopgTxP4BQGiv4cTvJloEiWdrduKChsu8bA1eQYGQsFLduIoKYcZA0q7Gr
 WHATSAPP_PHONE_ID = "875675892306352"
 DEEPSEEK_API_KEY = "sk-f43fe0642f3f4337b4ea7235c9fe5b8e"
 VERIFY_TOKEN = "mahi2004"
+SCRIPT_URL = "https://script.google.com/macros/s/AKfycbypBK1c1T4lW74Jy92SMU-vEL0TNY_ZyZH1f74DdmRCeXnKIgLxwoJn6PxNE7soNQZi/exec"
 
 client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
 
@@ -157,7 +158,7 @@ def process_message(user_id, user_text, platform):
             
             # Save to Sheet AND Local Memory
             if save_order_to_sheet(order_data, user_id):
-                clean_text = "Bsahtek! Commande ta3ek tsajlet (Saved). N'3aytoulak 9rib."
+                clean_text = "Bsahtek! Commande ta3ek tsajlet (Saved). N3aytoulak 3en 9rib."
             else:
                 clean_text = "Order received but sheet error."
                 
